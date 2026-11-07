@@ -1,0 +1,10 @@
+{
+  "features": {
+    "brain-garden": {
+      "status": "implemented",
+      "path": "docs/brain-garden/",
+      "review": "required_model_unavailable",
+      "revision": "non_reading_gameplay"
+    }
+  }
+}

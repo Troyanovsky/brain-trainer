@@ -1,0 +1,10 @@
+{
+  "name": "脑力花园",
+  "short_name": "脑力花园",
+  "lang": "zh-CN",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F8F9F4",
+  "theme_color": "#426B50",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
