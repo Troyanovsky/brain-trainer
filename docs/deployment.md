@@ -2,6 +2,13 @@
 
 This application deploys as a static Cloudflare Pages site using native Git integration.
 
+## Destinations
+
+- Public source repository: [Troyanovsky/brain-trainer](https://github.com/Troyanovsky/brain-trainer)
+- Production site: [脑力花园](https://brain-trainer-ezz.pages.dev)
+- Cloudflare Pages project: `brain-trainer`
+- Pages assigned the `brain-trainer-ezz.pages.dev` hostname during project creation.
+
 ## Build configuration
 
 - Production branch: `main`
@@ -14,6 +21,8 @@ This application deploys as a static Cloudflare Pages site using native Git inte
 Cloudflare installs dependencies from `package-lock.json`, runs the logic tests and production build, and publishes the generated static assets. The build also generates the service-worker asset manifest needed for offline play.
 
 Pushes to `main` trigger production deployments. Other branches use preview deployments when enabled in the Pages Git integration. Failed builds preserve the last successful production deployment.
+
+This project enables production deployments from `main` and preview deployments from other branches. Automatic PR comments are disabled; deployment status remains available through GitHub checks and Cloudflare Pages.
 
 ## Local verification
 

@@ -2,6 +2,8 @@
 
 一个完全本地运行的简体中文脑力训练应用。React + TypeScript + Vite，无后端、账号、外部 AI 或远程媒体依赖。
 
+[在线体验](https://brain-trainer-ezz.pages.dev) · [GitHub 源码](https://github.com/Troyanovsky/brain-trainer)
+
 ## 启动
 
 需要 Node.js 22 或更高版本。
