@@ -1,10 +1,25 @@
 {
   "features": {
+    "game-expansion": {
+      "status": "implemented",
+      "review": "reviewed_no_remaining_p1_p2",
+      "revision": "ce60acd",
+      "path": "docs/game-expansion/",
+      "verification": "docs/game-expansion/verification.md"
+    },
+    "data-compatibility": {
+      "status": "guarded_cutover_complete",
+      "implementation": "guarded_cutover_complete",
+      "remaining": "full_migration_backup_restore_merge_core_feature_split_and_version_fields_not_implemented",
+      "revision": "ce60acd",
+      "path": "docs/data-compatibility/",
+      "policy": "docs/data-compatibility/design.md"
+    },
     "brain-garden": {
       "status": "implemented",
       "path": "docs/brain-garden/",
-      "review": "required_model_unavailable",
-      "revision": "non_reading_gameplay"
+      "review": "reviewed",
+      "revision": "ce60acd_three_game_expansion"
     }
   }
 }

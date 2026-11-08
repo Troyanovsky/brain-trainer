@@ -24,6 +24,11 @@ Pushes to `main` trigger production deployments. Other branches use preview depl
 
 This project enables production deployments from `main` and preview deployments from other branches. Automatic PR comments are disabled; deployment status remains available through GitHub checks and Cloudflare Pages.
 
+The production URL always represents the most recent successful Cloudflare Pages deployment of
+the production branch. It does not prove that local work, a local commit or a different branch is
+live. After an authorized push, verify the exact commit reached a successful deployment before
+calling the site updated.
+
 ## Local verification
 
 ```sh
@@ -37,6 +42,16 @@ Browser acceptance tests can be run with `npm run test:e2e`; they require Chrome
 
 ## Operational notes
 
+- Follow the [repository engineering rules](../AGENTS.md) and
+  [data compatibility policy](data-compatibility/design.md) when deploying data or game changes.
+- The current client reads the guarded `brain-garden-store` envelope and can perform a one-time
+  validated import from `brain-garden-v1`. The previously deployed v1 client does not understand
+  the canonical envelope or the three new game IDs.
+- A frontend rollback restores code, not browser data. Rolling production back to the earlier v1
+  client is not compatible with profiles that have used the guarded store; prefer a compatible
+  forward fix or a rollback build that explicitly reads `brain-garden-store`.
+- Deployment does not add portable backup/restore. Before a domain change or intentional
+  incompatible storage release, provide and verify an explicit data-transfer plan.
 - GitHub repository visibility and Pages website visibility are separate: a private repository may serve a public Pages site.
 - Device profiles remain in each visitor's browser; deploying this static site does not upload local game histories.
 - Offline play requires an initial successful online load and service-worker installation.
