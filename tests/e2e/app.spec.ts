@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
-const KEY = 'brain-garden-v1';
+const KEY = 'brain-garden-store';
+const LEGACY_KEY = 'brain-garden-v1';
 const names: Record<string, string> = {
   tiles: '记忆闪格',
   sequence: '星光顺序',
@@ -83,7 +84,7 @@ async function seed(
         }),
       );
     },
-    { key: KEY, daily, level, sound },
+    { key: LEGACY_KEY, daily, level, sound },
   );
 }
 async function installSequenceObserver(page: Page) {
@@ -233,7 +234,7 @@ test('complete all ten games without reading or sound and persist distinct real 
     await solveGame(page, id);
     await page.getByRole('button', { name: '返回花园', exact: true }).click();
   }
-  const stored = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!), KEY);
+  const stored = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!).store, KEY);
   expect(stored.profiles[0].history).toHaveLength(10);
   expect(new Set(stored.profiles[0].history.map((r: any) => r.gameId)).size).toBe(10);
   expect(stored.profiles[0].history.every((r: any) => r.score > 0 && r.correct === r.rounds)).toBe(
@@ -270,7 +271,7 @@ test('daily journey resumes after refresh, completes four skills and celebrates'
   await page.getByRole('button', { name: '看看我的成长' }).click();
   await expect(page.locator('.summary-card').first()).toContainText('4');
   const history = await page.evaluate(
-    (key) => JSON.parse(localStorage.getItem(key)!).profiles[0].history,
+    (key) => JSON.parse(localStorage.getItem(key)!).store.profiles[0].history,
     KEY,
   );
   expect(history.every((r: any) => r.mode === 'daily')).toBe(true);
@@ -298,7 +299,7 @@ test('profiles create edit switch delete and isolate history and settings', asyn
   await page.getByRole('button', { name: '切换到小花', exact: true }).click();
   await page.getByRole('button', { name: '成长足迹', exact: true }).first().click();
   await expect(page.locator('.summary-card').first()).toContainText('0');
-  let data = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!), KEY);
+  let data = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!).store, KEY);
   expect(data.profiles[0].history).toHaveLength(0);
   expect(data.profiles[1].history).toHaveLength(1);
   expect(data.profiles[1].settings.sound).toBe(false);
@@ -309,7 +310,7 @@ test('profiles create edit switch delete and isolate history and settings', asyn
   await page.getByRole('button', { name: '确认删除', exact: true }).click();
   await page.getByRole('button', { name: '关闭', exact: true }).click();
   await page.reload();
-  data = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!), KEY);
+  data = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!).store, KEY);
   expect(data.profiles).toHaveLength(1);
   expect(data.profiles[0].name).toBe('小花');
 });
@@ -340,7 +341,7 @@ test('wrong answers do not score, double taps cannot award extra rounds, and qui
   await page.getByRole('button', { name: '退出本场', exact: true }).click();
   expect(
     await page.evaluate(
-      (key) => JSON.parse(localStorage.getItem(key)!).profiles[0].history.length,
+      (key) => JSON.parse(localStorage.getItem(key)!).store.profiles[0].history.length,
       KEY,
     ),
   ).toBe(1);
@@ -409,7 +410,7 @@ test('production shell and all games open after a fully offline reload', async (
 
   await expect(page.getByRole('button', { name: '开始今日训练', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '游戏乐园', exact: true }).first().click();
-  await expect(page.locator('.game-card')).toHaveCount(10);
+  await expect(page.locator('.game-card')).toHaveCount(13);
   await page.getByRole('button', { name: '开始点点合合' }).click();
   await solveGame(page, 'math');
   expect(errors).toEqual([]);
@@ -434,7 +435,7 @@ test('a second tab switches profiles without leaking an in-flight game', async (
   await expect(page.locator('.player-shell')).not.toBeVisible();
   await page.getByRole('button', { name: '今日训练', exact: true }).first().click();
   await expect(page.getByRole('heading', { level: 1 })).toContainText('另一朵花');
-  const data = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!), KEY);
+  const data = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!).store, KEY);
   expect(data.profiles).toHaveLength(2);
   expect(data.profiles.every((profile: any) => profile.history.length === 0)).toBe(true);
 });
@@ -523,7 +524,7 @@ test('same/opposite and color rehearsals can be corrected and completed without 
     await expect(page.locator('.game-board')).toBeVisible();
     expect(
       await page.evaluate(
-        (key) => JSON.parse(localStorage.getItem(key)!).profiles[0].history.length,
+        (key) => JSON.parse(localStorage.getItem(key)!).store.profiles[0].history.length,
         KEY,
       ),
     ).toBe(0);
@@ -539,9 +540,10 @@ test('replaying a completed daily picture is free practice and does not advance 
   await page.goto('/');
   await page.evaluate((key) => {
     const data = JSON.parse(localStorage.getItem(key)!);
-    const plans = data.profiles[0].plans;
+    const plans = data.store.profiles[0].plans;
     const today = Object.keys(plans)[0];
     plans[today].completedIds = ['compare'];
+    data.revision += 1;
     localStorage.setItem(key, JSON.stringify(data));
   }, KEY);
   await page.reload();
@@ -550,6 +552,6 @@ test('replaying a completed daily picture is free practice and does not advance 
   await solveGame(page, 'compare');
   await page.getByRole('button', { name: '返回花园', exact: true }).click();
   await expect(page.locator('.hero-progress')).toHaveText('1 / 4 已完成');
-  const data = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!), KEY);
+  const data = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!).store, KEY);
   expect(data.profiles[0].history.at(-1).mode).toBe('free');
 });

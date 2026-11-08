@@ -135,7 +135,7 @@ export function getAchievements(profile: Profile) {
     {
       id: 'all',
       name: '全能园丁',
-      description: '体验全部 10 款游戏',
+      description: '体验 10 款不同游戏',
       icon: 'flower',
       unlocked: games >= 10,
     },

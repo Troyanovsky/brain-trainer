@@ -21,6 +21,9 @@ import { GameCue } from './Visuals';
 import { GameBoard } from './GameBoard';
 import { Modal } from '../components/Modal';
 import { generateQuestion, type Question } from './engine';
+import { scoreRoute } from './route';
+import { scoreFitRound } from './fit';
+import { ExpansionPractice } from './ExpansionPractice';
 import { playTone } from './sound';
 
 const INSTRUCTIONS: Record<GameId, [string, string, string]> = {
@@ -46,9 +49,22 @@ const INSTRUCTIONS: Record<GameId, [string, string, string]> = {
     '点下方和剩余圆点一样多的一组，不用认数字',
   ],
   flip: ['听清方向小指令', '「一样」跟着箭头，「相反」就换个方向', '箭头向左，要求相反时就点右'],
+  focus: ['盯住中央小指针', '四周图案再热闹，也只选中央指针的方向', '先看中央，再点方向箭头'],
+  route: [
+    '收齐包裹，走向出口',
+    '点相邻格移动，收齐包裹后出口才会打开',
+    '走错了就撤销或重新出发，路线不着急',
+  ],
+  fit: [
+    '让拼块住进空位',
+    '选一块拼块，转一转、翻一翻，再放到空位',
+    '先对比空位和右侧预览，放对了会有勾',
+  ],
 };
 const STANDARD_ROUNDS = 6;
 const TRACKING_ROUNDS = 3;
+const ROUTE_ROUNDS = 3;
+const FIT_ROUNDS = 4;
 const FEEDBACK_MS = 1100;
 export interface GamePlayerProps {
   gameId: GameId;
@@ -71,7 +87,16 @@ export function GamePlayer(props: GamePlayerProps) {
     props.nextAction
   ];
   const initialLevel = useRef(props.initialLevel).current;
-  const total = props.gameId === 'schulte' ? TRACKING_ROUNDS : STANDARD_ROUNDS;
+  const total =
+    props.gameId === 'schulte'
+      ? TRACKING_ROUNDS
+      : props.gameId === 'route'
+        ? ROUTE_ROUNDS
+        : props.gameId === 'fit'
+          ? FIT_ROUNDS
+          : STANDARD_ROUNDS;
+  const hasGuidedPractice = ['focus', 'route', 'fit'].includes(props.gameId);
+  const manualFeedback = props.gameId === 'route' || props.gameId === 'fit';
   const [phase, setPhase] = useState<'intro' | 'preview' | 'answer' | 'feedback' | 'result'>(
     'intro',
   );
@@ -193,7 +218,7 @@ export function GamePlayer(props: GamePlayerProps) {
   useEffect(() => {
     // A correction stays visible until the player chooses the forward icon.
     // Success still flows automatically; hiding the tab pauses both states.
-    if (phase !== 'feedback' || !feedback.ok || paused || exitConfirm) return;
+    if (phase !== 'feedback' || !feedback.ok || paused || exitConfirm || manualFeedback) return;
     const timer = window.setTimeout(advanceRound, FEEDBACK_MS);
     return () => window.clearTimeout(timer);
   }, [
@@ -211,18 +236,19 @@ export function GamePlayer(props: GamePlayerProps) {
     props.mode,
     props.planDate,
     initialLevel,
+    manualFeedback,
   ]);
   function begin() {
     elapsed.current = 0;
     lock.current = false;
     setPhase(isMemory ? 'preview' : 'answer');
   }
-  function finishRound(ok: boolean, message?: string) {
+  function finishRound(ok: boolean, message?: string, earnedOverride?: number) {
     if (lock.current || phase !== 'answer' || paused || exitConfirm) return;
     lock.current = true;
     const time = elapsed.current + performance.now() - started.current;
     totalElapsed.current += time;
-    const earned = scoreRound(ok, level, time);
+    const earned = earnedOverride ?? scoreRound(ok, level, time);
     setScore((value) => value + earned);
     setCorrect((value) => value + (ok ? 1 : 0));
     streak.current = ok ? streak.current + 1 : 0;
@@ -236,6 +262,7 @@ export function GamePlayer(props: GamePlayerProps) {
   }
   function select(index: number) {
     if (phase !== 'answer' || lock.current || paused || exitConfirm) return;
+    if (question.kind === 'route' || question.kind === 'fit') return;
     if (question.kind === 'tiles') {
       if (picked.includes(index)) return;
       setPicked([...picked, index]);
@@ -288,13 +315,19 @@ export function GamePlayer(props: GamePlayerProps) {
           ? '找到和上面一样的图案'
           : question.kind === 'odd'
             ? '点出唯一不同的图形'
-            : props.gameId === 'stroop'
-              ? '找同色，别看形状'
-              : props.gameId === 'flip' && question.kind === 'choice'
-                ? question.reverse
-                  ? '和箭头相反'
-                  : '和箭头一样'
-                : INSTRUCTIONS[props.gameId][0];
+            : question.kind === 'focus'
+              ? '跟着中央指针选方向'
+              : question.kind === 'route'
+                ? '收齐包裹，再走向出口'
+                : question.kind === 'fit'
+                  ? '选一块，转一转、翻一翻，再放进空位'
+                  : props.gameId === 'stroop'
+                    ? '找同色，别看形状'
+                    : props.gameId === 'flip' && question.kind === 'choice'
+                      ? question.reverse
+                        ? '和箭头相反'
+                        : '和箭头一样'
+                      : INSTRUCTIONS[props.gameId][0];
   return (
     <div
       className="player-shell"
@@ -334,9 +367,15 @@ export function GamePlayer(props: GamePlayerProps) {
                 <span>先试一试 · 不计分</span>
               </button>
             )}
-            <button className="primary-button" onClick={begin} aria-label="开始挑战">
-              <Play size={19} fill="currentColor" />
-              <span className="reader-help">开始挑战</span>
+            <button
+              className="primary-button"
+              onClick={() => (hasGuidedPractice ? setPracticeOpen(true) : begin())}
+              aria-label={hasGuidedPractice ? '开始不计分试玩' : '开始挑战'}
+            >
+              {hasGuidedPractice ? <Hand size={21} /> : <Play size={19} fill="currentColor" />}
+              <span className="reader-help">
+                {hasGuidedPractice ? '先试一试 · 不计分' : '开始挑战'}
+              </span>
             </button>
             <small>{total} 轮小挑战 · 不用着急，慢慢来也很棒</small>
           </div>
@@ -451,6 +490,26 @@ export function GamePlayer(props: GamePlayerProps) {
                 nextNumber={nextNumber}
                 wrongCell={wrongCell}
                 onSelect={select}
+                roundKey={round}
+                onGameResult={(resultCorrect, moves) => {
+                  if (question.kind === 'route' && resultCorrect) {
+                    finishRound(
+                      true,
+                      '包裹全送到啦，再看看走过的路线',
+                      scoreRoute(level, question.optimalMoves, moves ?? question.optimalMoves),
+                    );
+                    return;
+                  }
+                  if (question.kind === 'fit') {
+                    finishRound(
+                      resultCorrect,
+                      resultCorrect ? '拼块刚好住进空位！' : '看看勾出的拼块和空位，再试下一轮',
+                      scoreFitRound(resultCorrect, level),
+                    );
+                    return;
+                  }
+                  finishRound(resultCorrect);
+                }}
               />
             </div>
             <div
@@ -486,7 +545,7 @@ export function GamePlayer(props: GamePlayerProps) {
                 </span>
               )}
             </div>
-            {phase === 'feedback' && !feedback.ok && (
+            {phase === 'feedback' && (!feedback.ok || manualFeedback) && (
               <button
                 className="primary-button feedback-continue"
                 aria-label={feedbackActionLabel}
@@ -502,6 +561,16 @@ export function GamePlayer(props: GamePlayerProps) {
       {practiceOpen && (props.gameId === 'flip' || props.gameId === 'stroop') && (
         <GuidedPractice
           gameId={props.gameId}
+          onClose={() => setPracticeOpen(false)}
+          onPlay={() => {
+            setPracticeOpen(false);
+            begin();
+          }}
+        />
+      )}
+      {practiceOpen && hasGuidedPractice && (
+        <ExpansionPractice
+          gameId={props.gameId as 'focus' | 'route' | 'fit'}
           onClose={() => setPracticeOpen(false)}
           onPlay={() => {
             setPracticeOpen(false);

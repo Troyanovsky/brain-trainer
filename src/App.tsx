@@ -2,17 +2,27 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ArrowRight,
   Check,
+  Download,
   Flower2,
   Gamepad2,
   Home as HomeIcon,
   Leaf,
   Settings,
   Sprout,
+  Trash2,
   TrendingUp,
   WifiOff,
 } from 'lucide-react';
 import type { GameId, Store, Result } from './domain/types';
-import { loadStore, parseStore, saveStore, STORAGE_KEY } from './domain/storage';
+import {
+  clearRecoverySnapshot,
+  openStore,
+  readRecoverySnapshot,
+  STORAGE_KEY,
+  transactStore,
+  type OpenStoreResult,
+  type StoreTransactionResult,
+} from './domain/storage';
 import { createPlan, dateKey, getLevel, getGameResults, recordResult } from './domain/training';
 import { Flower } from './components/Artwork';
 import { Modal } from './components/Modal';
@@ -42,12 +52,105 @@ function withPlan(store: Store, date = dateKey()): Store {
     ),
   };
 }
+
+function mergeProfileEditorChanges(base: Store, edited: Store, latest: Store): Store {
+  const baseIds = new Set(base.profiles.map((profile) => profile.id));
+  const editedById = new Map(edited.profiles.map((profile) => [profile.id, profile]));
+  const removedIds = new Set(
+    base.profiles.filter((profile) => !editedById.has(profile.id)).map((profile) => profile.id),
+  );
+  const profiles = latest.profiles
+    .filter((profile) => !removedIds.has(profile.id))
+    .map((profile) => {
+      const before = base.profiles.find((candidate) => candidate.id === profile.id);
+      const after = editedById.get(profile.id);
+      if (!before || !after) return profile;
+      return {
+        ...profile,
+        ...(before.name !== after.name ? { name: after.name } : {}),
+        ...(before.avatar !== after.avatar ? { avatar: after.avatar } : {}),
+        ...(before.settings.sound !== after.settings.sound
+          ? { settings: { ...profile.settings, sound: after.settings.sound } }
+          : {}),
+        ...(before.settings.reducedMotion !== after.settings.reducedMotion
+          ? {
+              settings: {
+                ...profile.settings,
+                ...(before.settings.sound !== after.settings.sound
+                  ? { sound: after.settings.sound }
+                  : {}),
+                reducedMotion: after.settings.reducedMotion,
+              },
+            }
+          : {}),
+      };
+    });
+  for (const profile of edited.profiles) {
+    if (!baseIds.has(profile.id) && !profiles.some((candidate) => candidate.id === profile.id))
+      profiles.push(profile);
+  }
+  const activeProfileId = profiles.some((profile) => profile.id === edited.activeProfileId)
+    ? edited.activeProfileId
+    : (profiles.find((profile) => profile.id === latest.activeProfileId)?.id ?? profiles[0].id);
+  return { ...latest, activeProfileId, profiles };
+}
+
+function recoveryRawForResult(
+  result: OpenStoreResult,
+  persisted: ReturnType<typeof readRecoverySnapshot>,
+): string | null {
+  if (!result.canPersist && result.raw) return result.raw;
+  return persisted?.raw ?? null;
+}
+
 export default function App() {
-  const [initial] = useState(() => loadStore());
-  const [store, setStore] = useState(() => withPlan(initial.store));
+  const [initial, setInitial] = useState<OpenStoreResult | null>(null);
+  const [openError, setOpenError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void openStore()
+      .then((result) => {
+        if (active) setInitial(result);
+      })
+      .catch(() => {
+        if (active)
+          setOpenError(
+            '本地花园暂时无法打开。请刷新页面；若问题持续，请检查浏览器是否允许本地存储。',
+          );
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (!initial)
+    return (
+      <main className="main-content" id="main" tabIndex={-1}>
+        <div className="storage-warning" role={openError ? 'alert' : 'status'}>
+          {openError ?? '正在打开你的小花园…'}
+        </div>
+      </main>
+    );
+  return <GardenApp initial={initial} />;
+}
+
+function GardenApp({ initial }: { initial: OpenStoreResult }) {
+  const [store, setStore] = useState(() => initial.store);
   const storeRef = useRef(store);
   storeRef.current = store;
   const [warning, setWarning] = useState<string | null>(initial.warning);
+  const canPersistRef = useRef(initial.canPersist);
+  const revisionRef = useRef(initial.revision);
+  const protectedRawRef = useRef<string | null>(initial.canPersist ? null : initial.raw);
+  const [recoveryRaw, setRecoveryRaw] = useState<string | null>(() => {
+    const persisted = readRecoverySnapshot();
+    return recoveryRawForResult(initial, persisted);
+  });
+  const [hasRecoverySnapshot, setHasRecoverySnapshot] = useState(
+    () => readRecoverySnapshot() !== null,
+  );
+  const mutationQueueRef = useRef<Promise<void>>(Promise.resolve());
   const [page, setPage] = useState<Page>('home'),
     [profilesOpen, setProfilesOpen] = useState(false),
     [settingsOpen, setSettingsOpen] = useState(false);
@@ -58,19 +161,80 @@ export default function App() {
   const mainRef = useRef<HTMLElement>(null);
   const profile = store.profiles.find((p) => p.id === store.activeProfileId)!;
   const plan = profile.plans[today] ?? createPlan(profile, today);
-  function commit(next: Store) {
-    const ready = withPlan(next);
-    storeRef.current = ready;
-    setStore(ready);
-    const saved = saveStore(ready);
-    setWarning(saved.ok ? null : saved.error!);
-  }
-  useEffect(() => {
-    if (!initial.warning) {
-      const saved = saveStore(storeRef.current);
-      if (!saved.ok) setWarning(saved.error!);
+
+  function applyCommittedStore(result: StoreTransactionResult) {
+    if (
+      result.saved &&
+      result.revision !== null &&
+      (revisionRef.current === null || result.revision >= revisionRef.current)
+    ) {
+      revisionRef.current = result.revision;
+      storeRef.current = result.store;
+      setStore(result.store);
+      canPersistRef.current = true;
+      protectedRawRef.current = null;
+      setWarning(result.warning ?? null);
+      const recovery = readRecoverySnapshot();
+      setHasRecoverySnapshot(recovery !== null);
+      setRecoveryRaw(recovery?.raw ?? null);
     }
-  }, [initial]);
+  }
+
+  function applyOpenedStore(result: OpenStoreResult) {
+    if (
+      result.revision !== null &&
+      revisionRef.current !== null &&
+      result.revision < revisionRef.current
+    )
+      return;
+    storeRef.current = result.store;
+    setStore(result.store);
+    revisionRef.current = result.revision;
+    canPersistRef.current = result.canPersist;
+    protectedRawRef.current = result.canPersist ? null : result.raw;
+    setWarning(result.warning);
+    const recovery = readRecoverySnapshot();
+    setHasRecoverySnapshot(recovery !== null);
+    setRecoveryRaw(recoveryRawForResult(result, recovery));
+  }
+
+  function commitUpdate(update: (latest: Store) => Store): Promise<void> {
+    let proposed: Store;
+    try {
+      proposed = update(storeRef.current);
+    } catch {
+      setWarning('这次修改无法安全应用，已保留原有记录。');
+      return Promise.resolve();
+    }
+    storeRef.current = proposed;
+    setStore(proposed);
+    const task = mutationQueueRef.current.then(async () => {
+      if (!canPersistRef.current) {
+        setWarning(
+          (current) =>
+            current ?? '当前记录处于未保存模式。请保持页面打开，并在存储恢复后重新载入页面。',
+        );
+        return;
+      }
+      const result = await transactStore(update);
+      if (result.saved) {
+        applyCommittedStore(result);
+        return;
+      }
+      if (result.rollback) {
+        storeRef.current = result.store;
+        setStore(result.store);
+        revisionRef.current = result.revision;
+      }
+      canPersistRef.current = false;
+      setWarning(result.error ?? '本次修改尚未保存，请保持页面打开。');
+    });
+    mutationQueueRef.current = task.catch(() => {
+      canPersistRef.current = false;
+      setWarning('本次修改尚未保存，请保持页面打开并检查浏览器存储设置。');
+    });
+    return mutationQueueRef.current;
+  }
   useEffect(() => {
     const update = () => setToday(dateKey());
     const connection = () => setOffline(!navigator.onLine);
@@ -83,23 +247,13 @@ export default function App() {
       setSession(null);
       setProfilesOpen(false);
       setSettingsOpen(false);
-      if (event.newValue) {
-        try {
-          const loaded = parseStore(event.newValue);
-          const next = withPlan(loaded.store);
-          storeRef.current = next;
-          setStore(next);
-          setWarning(loaded.warning);
-        } catch {
-          setWarning('另一个页面的数据无法读取，请刷新检查。');
-        }
-      } else {
-        const loaded = loadStore();
-        const next = withPlan(loaded.store);
-        storeRef.current = next;
-        setStore(next);
-        setWarning('浏览器中的数据已被清除，已开启新的临时花园。');
-      }
+      void openStore()
+        .then(applyOpenedStore)
+        .catch(() =>
+          setWarning(
+            '另一个页面更新了本地记录，但当前页面无法安全读取。请刷新检查；原记录不会被覆盖。',
+          ),
+        );
     };
     window.addEventListener('storage', sync);
     return () => {
@@ -111,7 +265,7 @@ export default function App() {
     };
   }, []);
   useEffect(() => {
-    if (!profile.plans[today]) commit(withPlan(storeRef.current, today));
+    if (!profile.plans[today]) void commitUpdate((latest) => withPlan(latest, today));
   }, [today, profile.id]);
   useEffect(() => {
     document.documentElement.classList.toggle('reduced-motion', profile.settings.reducedMotion);
@@ -159,11 +313,15 @@ export default function App() {
   }
   function finish(result: Result) {
     if (!session || session.profileId !== storeRef.current.activeProfileId) return;
-    commit({
-      ...storeRef.current,
-      profiles: storeRef.current.profiles.map((p) =>
-        p.id === session.profileId ? recordResult(p, result) : p,
-      ),
+    const sessionProfileId = session.profileId;
+    void commitUpdate((latest) => {
+      if (latest.activeProfileId !== sessionProfileId) return latest;
+      return {
+        ...latest,
+        profiles: latest.profiles.map((p) =>
+          p.id === sessionProfileId ? recordResult(p, result) : p,
+        ),
+      };
     });
   }
   function nextGame() {
@@ -186,6 +344,25 @@ export default function App() {
     { id: 'progress' as const, name: '成长足迹', Icon: TrendingUp },
   ];
   const activePlan = session?.planDate ? profile.plans[session.planDate] : undefined;
+  function downloadRecovery() {
+    if (!recoveryRaw) return;
+    const blob = new Blob([recoveryRaw], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `brain-garden-raw-${dateKey()}.txt`;
+    anchor.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
+  async function discardRecoverySnapshot() {
+    const result = await clearRecoverySnapshot();
+    if (!result.ok) {
+      setWarning(result.error ?? '恢复快照未能删除，请稍后重试。');
+      return;
+    }
+    setHasRecoverySnapshot(false);
+    setRecoveryRaw(protectedRawRef.current);
+  }
   return (
     <>
       {session ? (
@@ -297,9 +474,42 @@ export default function App() {
             </button>
           </div>
           <main className="main-content" id="main" tabIndex={-1} ref={mainRef}>
-            {warning && (
-              <div className="storage-warning" role="alert">
-                {warning}
+            {(warning || recoveryRaw) && (
+              <div className="storage-warning" role={warning ? 'alert' : 'status'}>
+                {warning && <span>{warning}</span>}
+                {recoveryRaw && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      alignItems: 'center',
+                      gap: 10,
+                      marginTop: warning ? 10 : 0,
+                    }}
+                  >
+                    <span>
+                      {warning
+                        ? '可先下载原始数据留存。'
+                        : hasRecoverySnapshot
+                          ? '本机保留了一次已校验的原始数据快照。'
+                          : '可下载当前原始数据留存。'}
+                    </span>
+                    <button className="secondary-button" type="button" onClick={downloadRecovery}>
+                      <Download size={16} />
+                      下载原始数据
+                    </button>
+                    {hasRecoverySnapshot && (
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        onClick={() => void discardRecoverySnapshot()}
+                      >
+                        <Trash2 size={16} />
+                        删除恢复快照
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
             {offline && (
@@ -343,7 +553,8 @@ export default function App() {
           initialSettings={settingsOpen}
           onChange={(next) => {
             setSession(null);
-            commit(next);
+            const editorBase = store;
+            void commitUpdate((latest) => mergeProfileEditorChanges(editorBase, next, latest));
           }}
           onClose={() => {
             setProfilesOpen(false);

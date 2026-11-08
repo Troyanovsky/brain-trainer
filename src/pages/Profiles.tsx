@@ -170,7 +170,9 @@ export function Profiles({
             <Flower variant={editing.avatar} />
           </div>
           <p className="modal-copy">
-            「{editing.name}」的所有练习、成就和设置将从此设备删除，无法恢复。
+            「{editing.name}」的当前练习、成就和设置将从这台设备的主记录中删除。应用还会删除
+            这台浏览器中可能包含其他档案旧备份的整个本地旧版与恢复副本；其他档案的当前记录不会改变。
+            已下载到应用外的原始文件不在应用控制范围内，需要你自行删除。
           </p>
           <div className="modal-actions">
             <button className="secondary-button" onClick={() => setView('edit')}>

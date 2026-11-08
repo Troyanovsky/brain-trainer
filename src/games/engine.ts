@@ -1,4 +1,11 @@
 import type { GameId } from '../domain/types';
+import { generateFitQuestion, type FitQuestion } from './fit';
+import { generateFocusQuestion, type FocusQuestion } from './focus';
+import { generateRouteQuestion, type RouteQuestion } from './route';
+
+export type { FitQuestion } from './fit';
+export type { FocusDirection, FocusNeighbor, FocusQuestion } from './focus';
+export type { RoutePoint, RouteQuestion } from './route';
 export type Random = () => number;
 export const SHAPES = ['circle', 'triangle', 'square', 'star', 'diamond'] as const;
 export const COLOR_OPTIONS = [
@@ -14,6 +21,9 @@ export interface VisualToken {
   color: string;
 }
 export type Question =
+  | FocusQuestion
+  | RouteQuestion
+  | FitQuestion
   | { kind: 'color'; target: VisualToken; options: VisualToken[]; answer: number }
   | { kind: 'tiles'; size: number; targets: number[] }
   | { kind: 'sequence'; sequence: number[] }
@@ -59,6 +69,9 @@ export function generateQuestion(
   rng: Random = Math.random,
 ): Question {
   const level = Math.max(1, Math.min(5, requestedLevel));
+  if (game === 'focus') return generateFocusQuestion(level, rng);
+  if (game === 'route') return generateRouteQuestion(level, rng);
+  if (game === 'fit') return generateFitQuestion(level, rng);
   if (game === 'tiles') {
     const size = level < 3 ? 3 : level < 5 ? 4 : 5;
     return {

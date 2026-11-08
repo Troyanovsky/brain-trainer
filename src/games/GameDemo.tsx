@@ -1,4 +1,15 @@
-import { ArrowRight, Check, Eye, Hand, Play, RotateCcw } from 'lucide-react';
+import {
+  ArrowRight,
+  Check,
+  DoorOpen,
+  Eye,
+  FlipHorizontal2,
+  Hand,
+  Package,
+  Play,
+  RotateCcw,
+  RotateCw,
+} from 'lucide-react';
 import { useState } from 'react';
 import type { GameId } from '../domain/types';
 import { Shape } from '../components/Artwork';
@@ -6,6 +17,8 @@ import { Modal } from '../components/Modal';
 import { GameBoard } from './GameBoard';
 import { PipGroup, RuleBadge, TrackingGlyph, GameCue } from './Visuals';
 import type { Question } from './engine';
+import { DirectionArrow } from './FocusBoard';
+import { createFitPracticeQuestion, fitDimensions } from './fit';
 
 const EXAMPLES: Partial<Record<GameId, Question>> = {
   pattern: {
@@ -120,6 +133,65 @@ export function GameDemo({ gameId }: { gameId: GameId }) {
             ))}
           </div>
         </div>
+      ) : gameId === 'focus' ? (
+        <div className="focus-demo-example">
+          <div className="focus-demo-scene" aria-hidden="true">
+            <span className="demo-pointer demo-pointer-a">
+              <DirectionArrow direction="left" />
+            </span>
+            <span className="demo-pointer demo-pointer-b">
+              <DirectionArrow direction="up" />
+            </span>
+            <span className="demo-pointer demo-pointer-c">
+              <DirectionArrow direction="right" />
+            </span>
+            <span className="demo-center-pointer">
+              <DirectionArrow direction="up" />
+            </span>
+          </div>
+          <ArrowRight size={20} />
+          <span className="focus-demo-answer">
+            <DirectionArrow direction="up" />
+            <Hand size={23} />
+          </span>
+          <Check size={23} />
+        </div>
+      ) : gameId === 'route' ? (
+        <div className="route-demo-example" aria-label="方格示范：拿到包裹，沿通路走到出口">
+          <div className="route-demo-grid" aria-hidden="true">
+            {Array.from({ length: 9 }, (_, index) => (
+              <i
+                key={index}
+                className={[
+                  index === 2 ? 'demo-route-block' : '',
+                  [3, 5, 6, 7, 8].includes(index) ? 'demo-route-trail' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+              >
+                {index === 8 ? <Package /> : index === 5 ? <DoorOpen /> : null}
+                {index === 3 && <span className="demo-route-walker" />}
+                {index === 3 && <DirectionArrow direction="down" />}
+                {index === 6 && (
+                  <>
+                    <DirectionArrow direction="right" />
+                    <Hand className="demo-route-hand" />
+                  </>
+                )}
+                {index === 7 && <DirectionArrow direction="right" />}
+                {index === 8 && <DirectionArrow direction="up" />}
+              </i>
+            ))}
+          </div>
+          <ArrowRight size={20} />
+          <span className="route-demo-slots" aria-hidden="true">
+            <Package />
+            <Check />
+          </span>
+          <Check size={23} />
+        </div>
+      ) : gameId === 'fit' ? (
+        <FitDemo />
       ) : example ? (
         <>
           <div className="demo-board">
@@ -155,6 +227,58 @@ export function GameDemo({ gameId }: { gameId: GameId }) {
         </div>
       )}
     </figure>
+  );
+}
+
+function FitDemo() {
+  const rotation = createFitPracticeQuestion('rotate');
+  const reflection = createFitPracticeQuestion('reflect');
+  return (
+    <div className="fit-demo-example">
+      <div className="fit-demo-step" aria-label="旋转拼块后放进空位">
+        <DemoGridPiece cells={rotation.pieces[rotation.answer].cells} />
+        <span>
+          <RotateCw size={22} />
+          <Hand size={22} />
+        </span>
+        <DemoGridPiece cells={rotation.targetCells} />
+        <Check size={21} />
+      </div>
+      <div className="fit-demo-step" aria-label="翻面拼块后放进空位">
+        <DemoGridPiece cells={reflection.pieces[reflection.answer].cells} />
+        <span>
+          <FlipHorizontal2 size={22} />
+          <Hand size={22} />
+        </span>
+        <DemoGridPiece cells={reflection.targetCells} />
+        <Check size={21} />
+      </div>
+    </div>
+  );
+}
+
+function DemoGridPiece({ cells }: { cells: { x: number; y: number }[] }) {
+  const dimensions = fitDimensions(cells);
+  const filled = new Set(cells.map((cell) => `${cell.x}:${cell.y}`));
+  return (
+    <span
+      className="demo-grid-piece"
+      style={{ gridTemplateColumns: `repeat(${dimensions.columns}, 1fr)` }}
+      aria-hidden="true"
+    >
+      {Array.from({ length: dimensions.rows * dimensions.columns }, (_, index) => {
+        const x = index % dimensions.columns;
+        const y = Math.floor(index / dimensions.columns);
+        return (
+          <i
+            key={index}
+            className={filled.has(`${x}:${y}`) ? 'filled' : ''}
+            data-cell-x={filled.has(`${x}:${y}`) ? x : undefined}
+            data-cell-y={filled.has(`${x}:${y}`) ? y : undefined}
+          />
+        );
+      })}
+    </span>
   );
 }
 

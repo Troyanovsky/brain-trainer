@@ -130,6 +130,8 @@ export function GameCue({
   preview: boolean;
   nextNumber: number;
 }) {
+  if (question.kind === 'focus' || question.kind === 'route' || question.kind === 'fit')
+    return null;
   if (question.kind === 'choice' && question.game === 'flip')
     return <DirectionCue reverse={!!question.reverse} />;
   if (question.kind === 'schulte')

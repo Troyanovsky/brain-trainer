@@ -8,7 +8,9 @@ function random(seed: number) {
     return n / 4294967296;
   };
 }
-describe.each(GAMES)('$name game generator', (game) => {
+const legacyGames = GAMES.filter((game) => !['focus', 'route', 'fit'].includes(game.id));
+
+describe.each(legacyGames)('$name game generator', (game) => {
   it('has a solvable, unambiguous board at every level over 100 seeds', () => {
     for (let level = 1; level <= 5; level++)
       for (let seed = 0; seed < 100; seed++) {

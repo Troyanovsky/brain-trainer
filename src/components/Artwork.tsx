@@ -181,6 +181,58 @@ export function GameArt({ id, small = false }: { id: GameId; small?: boolean }) 
           </svg>
           <ArtDots count={5} />
         </div>
+      ) : id === 'focus' ? (
+        <div className="art-focus">
+          {['left', 'up', 'right', 'left'].map((direction, index) => (
+            <i key={index} className={`art-focus-neighbor direction-${direction}`} />
+          ))}
+          <span className="art-focus-center">
+            <svg viewBox="0 0 32 32">
+              <path
+                d="M16 27V5m-8 8 8-8 8 8"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </span>
+        </div>
+      ) : id === 'route' ? (
+        <div className="art-route">
+          <span className="art-route-work">
+            <i />
+          </span>
+          <span className="art-route-arrow">↗</span>
+          <span className="art-route-arrow">→</span>
+          <span className="art-route-package">
+            <PackageGlyph />
+          </span>
+          <span className="art-route-door">
+            <DoorGlyph />
+          </span>
+        </div>
+      ) : id === 'fit' ? (
+        <div className="art-fit">
+          <span className="art-fit-target">
+            <i />
+            <i />
+            <i />
+            <i />
+            <i />
+          </span>
+          <span className="art-fit-turn">
+            <RotateGlyph />
+          </span>
+          <span className="art-fit-piece">
+            <i />
+            <i />
+            <i />
+            <i />
+            <i />
+          </span>
+        </div>
       ) : (
         <div className="art-flip">
           <span>←</span>
@@ -188,6 +240,41 @@ export function GameArt({ id, small = false }: { id: GameId; small?: boolean }) 
         </div>
       )}
     </div>
+  );
+}
+
+function PackageGlyph() {
+  return (
+    <svg viewBox="0 0 32 32" aria-hidden="true">
+      <path d="m4 10 12-6 12 6v14l-12 6-12-6Z" fill="#E8C77A" stroke="currentColor" />
+      <path d="m4 10 12 6 12-6M16 16v14" fill="none" stroke="currentColor" strokeWidth="2" />
+      <path d="m10 7 12 6" fill="none" stroke="currentColor" strokeWidth="3" />
+    </svg>
+  );
+}
+
+function DoorGlyph() {
+  return (
+    <svg viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M6 28V5h20v23" fill="none" stroke="currentColor" strokeWidth="3" />
+      <path d="M11 9h10v19H11Z" fill="none" stroke="currentColor" strokeWidth="2.2" />
+      <circle cx="19" cy="18" r="1.5" fill="currentColor" />
+    </svg>
+  );
+}
+
+function RotateGlyph() {
+  return (
+    <svg viewBox="0 0 32 32" aria-hidden="true">
+      <path
+        d="M25 13V5m-5 3 5-3 3 5M25 13A10 10 0 1 0 22 27"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 

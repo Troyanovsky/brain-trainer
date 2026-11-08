@@ -21,7 +21,7 @@ export function Library({ profile, onPlay }: { profile: Profile; onPlay: (id: Ga
             游戏乐园
             <Compass className="greeting-sun" size={30} />
           </h1>
-          <p>十种小挑战，总有一种让你心动。</p>
+          <p>{GAMES.length} 种小挑战，总有一种让你心动。</p>
         </div>
         <span className="header-badge">短短一局，满满乐趣</span>
       </header>
@@ -31,7 +31,7 @@ export function Library({ profile, onPlay }: { profile: Profile; onPlay: (id: Ga
           onClick={() => setFilter('all')}
           aria-pressed={filter === 'all'}
         >
-          全部游戏<span>10</span>
+          全部游戏<span>{GAMES.length}</span>
         </button>
         {(Object.keys(SKILLS) as Skill[]).map((skill) => {
           const Icon = icons[skill];

@@ -9,7 +9,10 @@ export type GameId =
   | 'compare'
   | 'schulte'
   | 'math'
-  | 'flip';
+  | 'flip'
+  | 'focus'
+  | 'route'
+  | 'fit';
 export interface GameMeta {
   id: GameId;
   name: string;

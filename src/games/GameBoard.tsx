@@ -4,6 +4,9 @@ import { getGame } from '../domain/catalog';
 import { Shape } from '../components/Artwork';
 import { COLOR_OPTIONS, SHAPES, type Question, type VisualToken } from './engine';
 import { PipGroup, TrackingGlyph } from './Visuals';
+import { FocusBoard } from './FocusBoard';
+import { RouteBoard } from './RouteBoard';
+import { FitBoard } from './FitBoard';
 const shapeNames = ['圆形', '三角形', '方形', '星形', '菱形'];
 const directionNames: Record<string, string> = {
   '←': '向左',
@@ -30,6 +33,8 @@ interface GameBoardProps {
   nextNumber: number;
   wrongCell: number;
   onSelect: (index: number) => void;
+  onGameResult?: (correct: boolean, moves?: number) => void;
+  roundKey?: number;
   example?: boolean;
 }
 /** Board adapters render each game independently of session timing and persistence. */
@@ -43,9 +48,39 @@ export function GameBoard({
   nextNumber,
   wrongCell,
   onSelect,
+  onGameResult = () => {},
+  roundKey = 0,
   example = false,
 }: GameBoardProps) {
   const answering = phase === 'answer';
+  if (question.kind === 'focus')
+    return (
+      <FocusBoard
+        question={question}
+        answering={answering}
+        picked={picked}
+        onSelect={onSelect}
+        showCorrection={phase === 'feedback' && !example}
+      />
+    );
+  if (question.kind === 'route')
+    return (
+      <RouteBoard
+        key={`route-${roundKey}`}
+        question={question}
+        answering={answering}
+        onResult={(moves) => onGameResult(true, moves)}
+      />
+    );
+  if (question.kind === 'fit')
+    return (
+      <FitBoard
+        key={`fit-${roundKey}`}
+        question={question}
+        answering={answering}
+        onResult={(correct) => onGameResult(correct)}
+      />
+    );
   const gridSize = 'size' in question ? question.size : 0;
   const game = getGame(gameId);
   const isExampleAnswer = (index: number) =>

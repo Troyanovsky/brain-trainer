@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "activeProfileId": "fixture-profile-a",
+  "profiles": [
+    {
+      "id": "fixture-profile-a",
+      "name": "小花",
+      "avatar": 0,
+      "settings": {
+        "sound": true,
+        "reducedMotion": false
+      },
+      "history": [
+        {
+          "id": "fixture-result-a",
+          "gameId": "tiles",
+          "level": 2,
+          "score": 420,
+          "correct": 5,
+          "rounds": 6,
+          "completedAt": "2026-11-06T12:00:00.000Z",
+          "duration": 24000,
+          "mode": "free",
+          "rulesVersion": 1
+        }
+      ],
+      "plans": {
+        "2026-11-06": {
+          "date": "2026-11-06",
+          "gameIds": ["tiles", "pattern", "odd", "compare"],
+          "completedIds": []
+        }
+      }
+    },
+    {
+      "id": "fixture-profile-b",
+      "name": "小树",
+      "avatar": 2,
+      "settings": {
+        "sound": false,
+        "reducedMotion": true
+      },
+      "history": [],
+      "plans": {}
+    }
+  ]
+}
